@@ -92,6 +92,46 @@
 
   ::selection{background:var(--yellow); color:var(--black-ink);}
 
+  /* ---------- intro splash ---------- */
+  #introSplash{
+    position:fixed; inset:0; z-index:9999; background:var(--ink);
+    display:flex; align-items:center; justify-content:center;
+    opacity:1; visibility:visible;
+    transition:opacity .7s ease, visibility 0s linear 0s;
+  }
+  #introSplash.hide{opacity:0; visibility:hidden; transition:opacity .7s ease, visibility 0s linear .7s;}
+  #introSplash video{width:100%; height:100%; object-fit:cover;}
+  #introSplash .intro-controls{
+    position:absolute; inset:0; pointer-events:none;
+  }
+  #introSkip, #introSound{
+    position:absolute; pointer-events:auto;
+    font-family:'Golos Text', sans-serif; font-weight:600; font-size:13px;
+    letter-spacing:.02em; cursor:pointer; border-radius:999px;
+    display:inline-flex; align-items:center; gap:8px;
+    transition:border-color .2s ease, color .2s ease, background .2s ease, opacity .3s ease;
+  }
+  #introSkip{
+    right:20px; bottom:20px; padding:10px 18px;
+    background:rgba(255,255,255,0.06); border:1px solid var(--line-strong); color:var(--muted);
+  }
+  #introSkip:hover{color:var(--text); border-color:var(--yellow);}
+  #introSound{
+    left:50%; bottom:64px; transform:translateX(-50%);
+    padding:12px 22px; background:var(--yellow); color:var(--black-ink); border:none;
+    box-shadow:0 10px 30px rgba(255,204,0,0.25);
+    opacity:0; visibility:hidden;
+  }
+  #introSound.show{opacity:1; visibility:visible;}
+  #introSound:hover{background:var(--yellow-soft);}
+  @media (max-width:640px){
+    #introSkip{right:14px; bottom:14px; padding:9px 14px; font-size:12px;}
+    #introSound{bottom:48px; padding:11px 18px; font-size:13px;}
+  }
+  @media (prefers-reduced-motion: reduce){
+    #introSplash{display:none;}
+  }
+
   /* ---------- scroll reveal ---------- */
   .reveal{opacity:0; transform:translateY(28px); transition:opacity .7s ease, transform .7s cubic-bezier(.2,.7,.2,1);}
   .reveal.in{opacity:1; transform:translateY(0);}
@@ -403,6 +443,76 @@
 </style>
 </head>
 <body>
+
+<div id="introSplash" role="dialog" aria-label="GTAMOYKA.UZ — intro">
+  <video id="introVideo" autoplay muted playsinline webkit-playsinline preload="auto" poster="poster-intro.jpg">
+    <source src="intro.webm" type="video/webm">
+    <source src="intro.mp4" type="video/mp4">
+  </video>
+  <div class="intro-controls">
+    <button id="introSkip" type="button">O'tkazib yuborish →</button>
+    <button id="introSound" type="button">🔊 Ovozni yoqish</button>
+  </div>
+</div>
+<script>
+(function(){
+  var splash = document.getElementById('introSplash');
+  var video = document.getElementById('introVideo');
+  var skipBtn = document.getElementById('introSkip');
+  var soundBtn = document.getElementById('introSound');
+  if(!splash || !video){ return; }
+
+  var reduceMotion = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if(reduceMotion){ splash.style.display = 'none'; return; }
+
+  var seenKey = 'gta-intro-seen';
+  var alreadySeen = false;
+  try{ alreadySeen = sessionStorage.getItem(seenKey) === '1'; }catch(e){}
+  if(alreadySeen){ splash.style.display = 'none'; return; }
+
+  function closeIntro(){
+    try{ sessionStorage.setItem(seenKey, '1'); }catch(e){}
+    splash.classList.add('hide');
+    setTimeout(function(){
+      video.pause();
+      splash.style.display = 'none';
+    }, 750);
+  }
+
+  // Browsers block autoplay-with-sound without a prior user gesture.
+  // Try unmuted first; if that's rejected, fall back to muted autoplay
+  // and offer a one-tap "enable sound" control (stays in sync since
+  // it's the same video element, just unmuted mid-playback).
+  video.muted = false;
+  var playPromise = video.play();
+  if(playPromise && typeof playPromise.catch === 'function'){
+    playPromise.catch(function(){
+      video.muted = true;
+      video.play().catch(function(){});
+      soundBtn.classList.add('show');
+    });
+  }
+
+  soundBtn.addEventListener('click', function(){
+    video.muted = false;
+    video.play().catch(function(){});
+    soundBtn.classList.remove('show');
+  });
+
+  skipBtn.addEventListener('click', closeIntro);
+  splash.addEventListener('click', function(ev){
+    if(ev.target === skipBtn || ev.target === soundBtn) return;
+    if(soundBtn.classList.contains('show')){
+      video.muted = false;
+      video.play().catch(function(){});
+      soundBtn.classList.remove('show');
+    }
+  });
+  video.addEventListener('ended', closeIntro);
+  // safety fallback in case 'ended' never fires (slow network etc.)
+  setTimeout(closeIntro, 9000);
+})();
+</script>
 
 <canvas id="fxCanvas"></canvas>
 
@@ -899,6 +1009,7 @@ var translations = {
     }
   }
 };
+
 
 (function(){
   function get(obj, path){
